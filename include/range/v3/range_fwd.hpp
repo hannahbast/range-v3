@@ -14,8 +14,18 @@
 #ifndef RANGES_V3_RANGE_FWD_HPP
 #define RANGES_V3_RANGE_FWD_HPP
 
+#include <cstddef>
 #include <type_traits>
 #include <utility>
+
+#ifdef __has_include
+#if __has_include(<span>) && !defined(RANGES_WORKAROUND_MSVC_UNUSABLE_SPAN)
+#include <span>
+#endif
+#if __has_include(<string_view>)
+#include <string_view>
+#endif
+#endif
 
 #include <meta/meta.hpp>
 
@@ -537,6 +547,29 @@ namespace ranges
 
     template<typename R>
     RANGES_INLINE_VAR constexpr bool enable_borrowed_range = false;
+
+    // These partial specializations must be declared here, directly after the
+    // primary template and before the `RANGE_V3_COMBINE_WITH_STD` bridge at the
+    // end of this file. The bridge's constraint evaluates
+    // `enable_borrowed_range<T>`, and when `std::ranges::enable_borrowed_range`
+    // was already instantiated for `std::string_view` before this header
+    // (which GCC 16's `<format>` does), declaring the bridge instantiates
+    // `enable_borrowed_range<std::string_view>` right away. A specialization
+    // declared later would then be ill-formed ("partial specialization after
+    // instantiation").
+#if defined(__cpp_lib_string_view) && __cpp_lib_string_view >= 201603L
+    template<class CharT, class Traits>
+    RANGES_INLINE_VAR constexpr bool
+        enable_borrowed_range<std::basic_string_view<CharT, Traits>> = true;
+#endif
+
+// libstdc++'s <span> header only defines std::span when concepts
+// are also enabled. https://gcc.gnu.org/bugzilla/show_bug.cgi?id=97869
+#if defined(__cpp_lib_span) && __cpp_lib_span >= 202002L && \
+    (!defined(__GLIBCXX__) || defined(__cpp_lib_concepts))
+    template<class T, std::size_t N>
+    RANGES_INLINE_VAR constexpr bool enable_borrowed_range<std::span<T, N>> = true;
+#endif
 
     namespace detail
     {
